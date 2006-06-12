@@ -4,8 +4,8 @@
 #include "param.h"
 #include "memlayout.h"
 #include "spinlock.h"
-#include "sysinfo.h"
 #include "proc.h"
+#include "sysinfo.h"
 
 uint64
 sys_exit(void)
@@ -70,6 +70,16 @@ sys_sleep(void)
   release(&tickslock);
   return 0;
 }
+
+
+#ifdef LAB_PGTBL
+int
+sys_pgaccess(void)
+{
+  // lab pgtbl: your code here.
+  return 0;
+}
+#endif
 
 uint64
 sys_kill(void)

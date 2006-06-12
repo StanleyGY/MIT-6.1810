@@ -14,7 +14,6 @@ sub entry {
     print " ecall\n";
     print " ret\n";
 }
-
 entry("fork");
 entry("exit");
 entry("wait");
@@ -38,3 +37,5 @@ entry("sleep");
 entry("uptime");
 entry("trace");
 entry("sysinfo");
+entry("connect");
+entry("pgaccess");
