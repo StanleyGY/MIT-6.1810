@@ -194,7 +194,6 @@ statslock(char *buf, int sz) {
       n += snprint_lock(buf +n, sz-n, locks[i]);
     }
   }
-
   n += snprintf(buf+n, sz-n, "--- top 5 contended locks:\n");
   int last = 100000000;
   // stupid way to compute top 5 contended locks

@@ -106,6 +106,7 @@ int
 allocpid()
 {
   int pid;
+
   acquire(&pid_lock);
   pid = nextpid;
   nextpid = nextpid + 1;
@@ -487,6 +488,7 @@ wait(uint64 addr)
       release(&wait_lock);
       return -1;
     }
+
     // Wait for a child to exit.
     sleep(p, &wait_lock);  //DOC: wait-sleep
   }
@@ -678,6 +680,7 @@ int
 killed(struct proc *p)
 {
   int k;
+
   acquire(&p->lock);
   k = p->killed;
   release(&p->lock);

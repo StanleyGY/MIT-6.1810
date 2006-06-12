@@ -137,6 +137,7 @@ usertrapret(void)
 
   // set up the registers that trampoline.S's sret will use
   // to get to user space.
+
   // set S Previous Privilege mode to User.
   unsigned long x = r_sstatus();
   x &= ~SSTATUS_SPP; // clear SPP to 0 for user mode

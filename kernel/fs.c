@@ -24,7 +24,7 @@
 #define min(a, b) ((a) < (b) ? (a) : (b))
 // there should be one superblock per disk device, but we run with
 // only one device
-struct superblock sb; 
+struct superblock sb;
 
 // Read the super block.
 static void
@@ -182,7 +182,7 @@ void
 iinit()
 {
   int i = 0;
-  
+
   initlock(&itable.lock, "itable");
   for(i = 0; i < NINODE; i++) {
     initsleeplock(&itable.inode[i].lock, "inode");
@@ -295,7 +295,7 @@ ilock(struct inode *ip)
   struct buf *bp;
   struct dinode *dip;
 
-  if(ip == 0 || ip->ref < 1)
+  if(ip == 0 || atomic_read4(&ip->ref) < 1)
     panic("ilock");
 
   acquiresleep(&ip->lock);
@@ -320,7 +320,7 @@ ilock(struct inode *ip)
 void
 iunlock(struct inode *ip)
 {
-  if(ip == 0 || !holdingsleep(&ip->lock) || ip->ref < 1)
+  if(ip == 0 || !holdingsleep(&ip->lock) || atomic_read4(&ip->ref) < 1)
     panic("iunlock");
 
   releasesleep(&ip->lock);
@@ -416,7 +416,6 @@ bmap(struct inode *ip, uint bn)
     brelse(bp);
     return addr;
   }
-
   panic("bmap: out of range");
 }
 
