@@ -29,9 +29,6 @@ int uptime(void);
 int trace(int);
 int sysinfo(struct sysinfo *);
 #endif
-#ifdef LAB_NET
-int connect(uint32, uint16, uint16);
-#endif
 #ifdef LAB_PGTBL
 int pgaccess(void *base, int len, void *mask);
 int ugetpid(void);
@@ -39,6 +36,9 @@ int ugetpid(void);
 #ifdef LAB_TRAPS
 int sigalarm(int ticks, void (*handler)());
 int sigreturn(void);
+#endif
+#ifdef LAB_NET
+int connect(uint32, uint16, uint16);
 #endif
 
 // ulib.c
