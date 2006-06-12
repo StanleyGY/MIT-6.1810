@@ -197,6 +197,8 @@ UPROGS=\
 	$U/_sysinfotest\
 
 
+
+
 ifeq ($(LAB),$(filter $(LAB), lock))
 UPROGS += \
 	$U/_stats
@@ -271,13 +273,11 @@ fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS)
 -include kernel/*.d user/*.d
 
 clean:
-	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
+	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg *.dSYM *.zip \
 	*/*.o */*.d */*.asm */*.sym \
-	$U/initcode $U/initcode.out $K/kernel fs.img \
-	mkfs/mkfs .gdbinit \
-        $U/usys.S \
+	$U/initcode $U/initcode.out $K/kernel $U/usys.S \
+	mkfs/mkfs fs.img .gdbinit \
 	$(UPROGS) \
-	*.zip \
 	ph barrier
 
 # try to generate a unique GDB port
