@@ -460,7 +460,6 @@ wait(uint64 addr)
     havekids = 0;
     for(pp = proc; pp < &proc[NPROC]; pp++){
       if(pp->parent == p){
-        // printf("parent: %d wait for this child: %d\n", p->pid, pp->pid);
         // make sure the child isn't still in exit() or swtch().
         acquire(&pp->lock);
 

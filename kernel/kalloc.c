@@ -32,7 +32,9 @@ void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
+  #ifdef LAB_COW
   memset(mem_refcount, 0, sizeof(int) * MEMREF_PGNUM);
+  #endif
   freerange(end, (void*)PHYSTOP);
 }
 
