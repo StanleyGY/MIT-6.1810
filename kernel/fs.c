@@ -463,7 +463,6 @@ bmap(struct inode *ip, uint bn)
 // Truncate inode (discard contents).
 // Caller must hold ip->lock.
 
-#ifdef LAB_FS
 static void
 itrunc_indirect(const struct inode *ip, int blockno, int level) {
   struct buf *bp = bread(ip->dev, blockno);
@@ -483,16 +482,11 @@ itrunc_indirect(const struct inode *ip, int blockno, int level) {
   brelse(bp);
   bfree(ip->dev, blockno);
 }
-#endif
 
 void
 itrunc(struct inode *ip)
 {
   int i;
-
-  #ifndef LAB_FS
-  struct buf *bp;
-  #endif
 
   for(i = 0; i < NDIRECT; i++){
     if(ip->addrs[i]){
@@ -502,18 +496,7 @@ itrunc(struct inode *ip)
   }
 
   if(ip->addrs[NDIRECT]){
-    #ifdef LAB_FS
     itrunc_indirect(ip, ip->addrs[NDIRECT], 0);
-    #else
-    uint *a;
-    int j;
-
-    a = (uint*)bp->data;
-    for(j = 0; j < NINDIRECT; j++){
-      if(a[j])
-        bfree(ip->dev, a[j]);
-    }
-    #endif
     ip->addrs[NDIRECT] = 0;
   }
 
@@ -591,7 +574,6 @@ writei(struct inode *ip, int user_src, uint64 src, uint off, uint n)
 
   for(tot=0; tot<n; tot+=m, off+=m, src+=m){
     uint addr = bmap(ip, off/BSIZE);
-
     if(addr == 0)
       break;
     bp = bread(ip->dev, addr);
