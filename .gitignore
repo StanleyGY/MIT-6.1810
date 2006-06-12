@@ -19,8 +19,8 @@ user/usys.S
 xv6.out*
 .vagrant/
 submissions/
-.vscode/
 ph
 barrier
 /lab-*.json
 .DS_Store
+.vscode/
