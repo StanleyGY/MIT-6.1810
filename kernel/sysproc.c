@@ -4,6 +4,7 @@
 #include "param.h"
 #include "memlayout.h"
 #include "spinlock.h"
+#include "sysinfo.h"
 #include "proc.h"
 
 uint64
@@ -99,5 +100,23 @@ sys_trace(void)
 
   argint(0, &mask);
   myproc()->tmask = mask;
+  return 0;
+}
+
+uint64
+sys_sysinfo(void)
+{
+  uint64 userinfo;
+  struct sysinfo kinfo;
+  struct proc *p = myproc();
+
+  argaddr(0, &userinfo);  // user pointer for sysinfo struct
+
+  kinfo.freemem = mem_freebytes();
+  kinfo.nproc = proc_countactive();
+
+  if(copyout(p->pagetable, userinfo, (char *)&kinfo, sizeof(struct sysinfo)) < 0) {
+    return -1;
+  }
   return 0;
 }

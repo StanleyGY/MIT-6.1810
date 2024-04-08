@@ -13,3 +13,7 @@ sudo apt-get install git build-essential gdb-multiarch qemu-system-misc gcc-risc
 - Created a user program named `primes` that implements a **concurrent** pipe-based prime sieve, according to this [paper](https://swtch.com/~rsc/thread/#1)
 - Created a user program named `find` that recursively searches for files with specific names
 - Created a user program named `xargs` that converts outputs from stdout to program arguments
+
+**Lab 2**
+- Created a syscall `trace` that prints the invocations of syscalls and return values
+- Created a syscall `sysinfo` that prints number of active processes and bytes of free memory

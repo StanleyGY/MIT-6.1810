@@ -58,6 +58,19 @@ procinit(void)
   }
 }
 
+uint64
+proc_countactive(void) {
+  struct proc *p;
+  uint64 num = 0;
+
+  for(p = proc; p < &proc[NPROC]; p++) {
+    if (p->state != UNUSED) {
+      num ++;
+    }
+  }
+  return num;
+}
+
 // Must be called with interrupts disabled,
 // to prevent race with process being moved
 // to a different CPU.
