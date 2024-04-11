@@ -150,6 +150,13 @@ found:
     return 0;
   }
 
+  // [LAB-3]
+  #ifdef LAB_PGTBL
+  p->usys = (struct usyscall*)kalloc();
+  p->usys->pid = p->pid;
+  mappages(p->pagetable, USYSCALL, PGSIZE, (uint64)p->usys, PTE_U | PTE_R);
+  #endif
+
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
@@ -222,6 +229,9 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
+  #ifdef LAB_PGTBL
+  uvmunmap(pagetable, USYSCALL, 1, 1);
+  #endif
   uvmfree(pagetable, sz);
 }
 

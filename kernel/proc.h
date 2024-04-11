@@ -105,4 +105,8 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   int tmask;                   // Trace system calls
+
+  #ifdef LAB_PGTBL
+  struct usyscall *usys;       // A read-only page that demos data sharing between user and kernel
+  #endif
 };
