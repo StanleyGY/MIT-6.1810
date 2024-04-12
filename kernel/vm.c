@@ -452,23 +452,23 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 
 static void
 vmprint_walk(pagetable_t pagetable, int level) {
-  if (level == 3)
+  if (level == 0)
     return;
 
   for (int i = 0; i < 512; i++) {
     pte_t *pte = pagetable + i;
     if (*pte & PTE_V) {
       // Print depth of the page table tree
-      for (int j = 0; j <= level; j ++){
+      for (int j = 0; j <= 3 - level; j ++){
         printf("..");
-        if (j != level)
+        if (j != 3 - level)
           printf(" ");
       }
       uint64 child = PTE2PA(*pte);
       printf("%d: pte %p pa %p\n", i, *pte, child);
 
       // Go down the next level
-      vmprint_walk((pagetable_t)child, level + 1);
+      vmprint_walk((pagetable_t)child, level - 1);
     }
   }
 }
@@ -476,5 +476,5 @@ vmprint_walk(pagetable_t pagetable, int level) {
 void
 vmprint(pagetable_t pagetable) {
   printf("page table %p\n", (uint64)pagetable);
-  vmprint_walk(pagetable, 0);
+  vmprint_walk(pagetable, 3);
 }

@@ -71,12 +71,38 @@ sys_sleep(void)
   return 0;
 }
 
-
 #ifdef LAB_PGTBL
 int
 sys_pgaccess(void)
 {
-  // lab pgtbl: your code here.
+  uint64 vaddr;
+  uint64 uAddr;
+  int numPages;
+  unsigned int abits = 0;
+  struct proc *p = myproc();
+
+  argaddr(0, &vaddr);
+  argint(1, &numPages);
+  argaddr(2, &uAddr);
+
+  if (numPages > 32) {
+    return -1;
+  }
+
+  for (int i = 0; i < numPages; i++) {
+    pte_t *pte = walk(p->pagetable, vaddr + i * PGSIZE, 0);
+    if (*pte & PTE_A) {
+      // Page was accessed since the last call
+      abits |= (1 << i);
+      // Clear access bit
+      *pte &= ~PTE_A;
+    }
+  }
+
+  // Copy the kernel results to user addr
+  if (copyout(p->pagetable, uAddr, (char *)&abits, sizeof(unsigned int)) < 0) {
+    return -1;
+  }
   return 0;
 }
 #endif
