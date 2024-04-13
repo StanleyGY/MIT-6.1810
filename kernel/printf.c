@@ -122,6 +122,7 @@ panic(char *s)
   printf("panic: ");
   printf(s);
   printf("\n");
+  backtrace();
   panicked = 1; // freeze uart output from other CPUs
   for(;;)
     ;
@@ -132,4 +133,29 @@ printfinit(void)
 {
   initlock(&pr.lock, "pr");
   pr.locking = 1;
+}
+
+void
+backtrace(void) {
+  uint64 fp = r_fp(), newfp;
+  uint64 ra;
+  uint64 pbegin = PGROUNDDOWN((uint64)&fp);
+  uint64 pend = pbegin + PGSIZE;
+
+  printf("backtrace:\n");
+  while (1) {
+    newfp = *(uint64*)(fp - 16);
+
+    // All function stacks should be on a single page
+    // Refer to the stack layout from this page:
+    // https://pdos.csail.mit.edu/6.1810/2023/lec/l-riscv.txt
+    if (newfp < pbegin || newfp - 16 >= pend) {
+      break;
+    }
+
+    ra = *(uint64*)(fp - 8);
+    printf("%p\n", ra);
+
+    fp = newfp;
+  }
 }
