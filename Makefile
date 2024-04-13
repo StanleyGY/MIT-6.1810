@@ -207,7 +207,8 @@ endif
 ifeq ($(LAB),traps)
 UPROGS += \
 	$U/_call\
-	$U/_bttest
+	$U/_bttest\
+	$U/_alarmtest
 endif
 
 ifeq ($(LAB),lazy)
@@ -253,8 +254,6 @@ ifeq ($(LAB),fs)
 UPROGS += \
 	$U/_bigfile
 endif
-
-
 
 ifeq ($(LAB),net)
 UPROGS += \

@@ -141,6 +141,18 @@ found:
   p->usys->pid = p->pid;
   #endif
 
+  #ifdef LAB_TRAPS
+  // Disable alarm handler by default
+  p->alarm_ticks_threshold = 0;
+
+  // Allocate an alarm trapframe page
+  if((p->alarm_trapframe = (struct trapframe *)kalloc()) == 0){
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+  #endif
+
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
     freeproc(p);
@@ -178,6 +190,12 @@ freeproc(struct proc *p)
   #ifdef LAB_PGTBL
   if(p->usys)
     kfree((void*)p->usys);
+  #endif
+
+  #ifdef LAB_TRAPS
+  if (p->alarm_trapframe)
+    kfree((void*)p->alarm_trapframe);
+  p->alarm_trapframe = 0;
   #endif
 
   if(p->pagetable)
@@ -271,6 +289,7 @@ userinit(void)
 
   p = allocproc();
   initproc = p;
+
   // allocate one user page and copy initcode's instructions
   // and data into it.
   uvmfirst(p->pagetable, initcode, sizeof(initcode));
@@ -576,6 +595,7 @@ void
 sleep(void *chan, struct spinlock *lk)
 {
   struct proc *p = myproc();
+
   // Must acquire p->lock in order to
   // change p->state and then call sched.
   // Once we hold p->lock, we can be

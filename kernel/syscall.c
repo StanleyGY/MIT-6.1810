@@ -103,12 +103,15 @@ extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
 extern uint64 sys_trace(void);
 extern uint64 sys_sysinfo(void);
-
 #ifdef LAB_NET
 extern uint64 sys_connect(void);
 #endif
 #ifdef LAB_PGTBL
 extern uint64 sys_pgaccess(void);
+#endif
+#ifdef LAB_TRAPS
+extern uint64 sys_sigalarm(void);
+extern uint64 sys_sigreturn(void);
 #endif
 
 // An array mapping syscall numbers from syscall.h
@@ -142,6 +145,10 @@ static uint64 (*syscalls[])(void) = {
 #endif
 #ifdef LAB_PGTBL
 [SYS_pgaccess] sys_pgaccess,
+#endif
+#ifdef LAB_TRAPS
+[SYS_sigalarm]  sys_sigalarm,
+[SYS_sigreturn] sys_sigreturn,
 #endif
 };
 
@@ -181,12 +188,16 @@ syscall(void)
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
     // Use num to lookup the system call function for num, call it,
     // and store its return value in p->trapframe->a0
-    p->trapframe->a0 = syscalls[num]();
+    uint64 ret = syscalls[num]();
+    if (num != SYS_sigreturn) {
+      p->trapframe->a0 = ret;
+    }
 
     if ((p->tmask & (1 << num)) > 0) {
       printf("%d: syscall %s -> %d\n",
               sys_getpid(), syscall_names[num], p->trapframe->a0);
     }
+
   } else {
     printf("%d %s: unknown sys call %d\n",
             p->pid, p->name, num);

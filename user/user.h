@@ -32,6 +32,10 @@ int connect(uint32, uint16, uint16);
 int pgaccess(void *base, int len, void *mask);
 int ugetpid(void);
 #endif
+#ifdef LAB_TRAPS
+int sigalarm(int ticks, void (*handler)());
+int sigreturn(void);
+#endif
 
 // ulib.c
 int stat(const char*, struct stat*);
