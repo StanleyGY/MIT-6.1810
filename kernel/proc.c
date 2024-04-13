@@ -56,6 +56,7 @@ procinit(void)
   }
 }
 
+#ifdef LAB_SYSCALL
 uint64
 proc_countactive(void) {
   struct proc *p;
@@ -68,6 +69,7 @@ proc_countactive(void) {
   }
   return num;
 }
+#endif
 
 // Must be called with interrupts disabled,
 // to prevent race with process being moved
@@ -353,7 +355,9 @@ fork(void)
   *(np->trapframe) = *(p->trapframe);
 
   // Copy trace mask
+  #ifdef LAB_SYSCALL
   np->tmask = p->tmask;
+  #endif
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;

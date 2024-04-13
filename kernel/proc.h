@@ -104,7 +104,10 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  #ifdef LAB_SYSCALL
   int tmask;                   // Trace system calls
+  #endif
 
   #ifdef LAB_PGTBL
   struct usyscall *usys;       // A read-only page that demos data sharing between user and kernel

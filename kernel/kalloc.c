@@ -81,6 +81,7 @@ kalloc(void)
   return (void*)r;
 }
 
+#ifdef LAB_SYSCALL
 uint64
 mem_freebytes(void) {
   uint64 bytes = 0;
@@ -94,3 +95,4 @@ mem_freebytes(void) {
 
   return bytes;
 }
+#endif

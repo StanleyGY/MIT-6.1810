@@ -63,7 +63,9 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+#ifdef LAB_SYSCALL
 uint64          mem_freebytes(void);
+#endif
 
 // log.c
 void            initlog(int, struct superblock*);
@@ -91,7 +93,9 @@ int             growproc(int);
 void            proc_mapstacks(pagetable_t);
 pagetable_t     proc_pagetable(struct proc *);
 void            proc_freepagetable(pagetable_t, uint64);
+#ifdef LAB_SYSCALL
 uint64          proc_countactive(void);
+#endif
 int             kill(int);
 int             killed(struct proc*);
 void            setkilled(struct proc*);

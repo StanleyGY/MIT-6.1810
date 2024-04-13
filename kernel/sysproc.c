@@ -74,6 +74,89 @@ sys_sleep(void)
   return 0;
 }
 
+uint64
+sys_kill(void)
+{
+  int pid;
+
+  argint(0, &pid);
+  return kill(pid);
+}
+
+// return how many clock tick interrupts have occurred
+// since start.
+uint64
+sys_uptime(void)
+{
+  uint xticks;
+
+  acquire(&tickslock);
+  xticks = ticks;
+  release(&tickslock);
+  return xticks;
+}
+
+#ifdef LAB_SYSCALL
+uint64
+sys_trace(void)
+{
+  int mask;
+
+  argint(0, &mask);
+  myproc()->tmask = mask;
+  return 0;
+}
+
+uint64
+sys_sysinfo(void)
+{
+  uint64 userinfo;
+  struct sysinfo kinfo;
+  struct proc *p = myproc();
+
+  argaddr(0, &userinfo);  // user pointer for sysinfo struct
+
+  kinfo.freemem = mem_freebytes();
+  kinfo.nproc = proc_countactive();
+
+  if(copyout(p->pagetable, userinfo, (char *)&kinfo, sizeof(struct sysinfo)) < 0) {
+    return -1;
+  }
+  return 0;
+}
+#endif
+
+#ifdef LAB_TRAPS
+uint64
+sys_sigalarm(void) {
+  int ticks;
+  uint64 handler;
+  struct proc *p = myproc();
+
+  argint(0, &ticks);
+  argaddr(1, &handler);
+
+  p->alarm_ticks_threshold = ticks;
+  p->alarm_ticks = 0;
+  p->alarm_handler = handler;
+  return 0;
+}
+
+uint64
+sys_sigreturn(void) {
+  // Called by the alarm handler
+  struct proc *p = myproc();
+
+  // Reset the ticks after handler returns so that
+  // kernel will not recall the handler while it is being executed
+  p->alarm_ticks = 0;
+
+  // Restore the trapframe before interruption
+  *(p->trapframe) = *(p->alarm_trapframe);
+  return 0;
+}
+#endif
+
 #ifdef LAB_PGTBL
 int
 sys_pgaccess(void)
@@ -106,87 +189,6 @@ sys_pgaccess(void)
   if (copyout(p->pagetable, uAddr, (char *)&abits, sizeof(unsigned int)) < 0) {
     return -1;
   }
-  return 0;
-}
-#endif
-
-uint64
-sys_kill(void)
-{
-  int pid;
-
-  argint(0, &pid);
-  return kill(pid);
-}
-
-// return how many clock tick interrupts have occurred
-// since start.
-uint64
-sys_uptime(void)
-{
-  uint xticks;
-
-  acquire(&tickslock);
-  xticks = ticks;
-  release(&tickslock);
-  return xticks;
-}
-
-uint64
-sys_trace(void)
-{
-  int mask;
-
-  argint(0, &mask);
-  myproc()->tmask = mask;
-  return 0;
-}
-
-uint64
-sys_sysinfo(void)
-{
-  uint64 userinfo;
-  struct sysinfo kinfo;
-  struct proc *p = myproc();
-
-  argaddr(0, &userinfo);  // user pointer for sysinfo struct
-
-  kinfo.freemem = mem_freebytes();
-  kinfo.nproc = proc_countactive();
-
-  if(copyout(p->pagetable, userinfo, (char *)&kinfo, sizeof(struct sysinfo)) < 0) {
-    return -1;
-  }
-  return 0;
-}
-
-#ifdef LAB_TRAPS
-uint64
-sys_sigalarm(void) {
-  int ticks;
-  uint64 handler;
-  struct proc *p = myproc();
-
-  argint(0, &ticks);
-  argaddr(1, &handler);
-
-  p->alarm_ticks_threshold = ticks;
-  p->alarm_ticks = 0;
-  p->alarm_handler = handler;
-  return 0;
-}
-
-uint64
-sys_sigreturn(void) {
-  // Called by the alarm handler
-  struct proc *p = myproc();
-
-  // Reset the ticks after handler returns so that
-  // kernel will not recall the handler while it is being executed
-  p->alarm_ticks = 0;
-
-  // Restore the trapframe before interruption
-  *(p->trapframe) = *(p->alarm_trapframe);
   return 0;
 }
 #endif

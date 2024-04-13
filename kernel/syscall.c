@@ -101,8 +101,10 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
+#ifdef LAB_SYSCALL
 extern uint64 sys_trace(void);
 extern uint64 sys_sysinfo(void);
+#endif
 #ifdef LAB_NET
 extern uint64 sys_connect(void);
 #endif
@@ -138,8 +140,10 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+#ifdef LAB_SYSCALL
 [SYS_trace]   sys_trace,
 [SYS_sysinfo] sys_sysinfo,
+#endif
 #ifdef LAB_NET
 [SYS_connect] sys_connect,
 #endif
@@ -152,6 +156,7 @@ static uint64 (*syscalls[])(void) = {
 #endif
 };
 
+#ifdef LAB_SYSCALL
 static const char *syscall_names[] = {
 [SYS_fork]    "fork",
 [SYS_exit]    "exit",
@@ -177,6 +182,7 @@ static const char *syscall_names[] = {
 [SYS_trace]   "trace",
 [SYS_sysinfo] "sysinfo",
 };
+#endif
 
 void
 syscall(void)
@@ -193,10 +199,12 @@ syscall(void)
       p->trapframe->a0 = ret;
     }
 
+    #ifdef LAB_SYSCALL
     if ((p->tmask & (1 << num)) > 0) {
       printf("%d: syscall %s -> %d\n",
               sys_getpid(), syscall_names[num], p->trapframe->a0);
     }
+    #endif
 
   } else {
     printf("%d %s: unknown sys call %d\n",
