@@ -353,6 +353,10 @@ typedef uint64 *pagetable_t; // 512 PTEs
 #define PTE_U (1L << 4) // user can access
 #define PTE_A (1L << 6) // pagetable entry accessed
 
+#ifdef LAB_COW
+#define PTE_RSW_COW (1L << 8)
+#endif
+
 // shift a physical address to the right place for a PTE.
 #define PA2PTE(pa) ((((uint64)pa) >> 12) << 10)
 
@@ -370,3 +374,7 @@ typedef uint64 *pagetable_t; // 512 PTEs
 // Sv39, to avoid having to sign-extend virtual addresses
 // that have the high bit set.
 #define MAXVA (1L << (9 + 9 + 9 + 12 - 1))
+
+// Register SCAUSE possible values
+#define SCAUSE_SYSCALL        8
+#define SCAUSE_STOREPAGEFAULT 15

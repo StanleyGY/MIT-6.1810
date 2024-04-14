@@ -66,6 +66,10 @@ void            kinit(void);
 #ifdef LAB_SYSCALL
 uint64          mem_freebytes(void);
 #endif
+#ifdef LAB_COW
+void            mem_addref(uint64 va);
+int             mem_dropref(uint64 va);
+#endif
 
 // log.c
 void            initlog(int, struct superblock*);
@@ -172,6 +176,9 @@ void            uvmfirst(pagetable_t, uchar *, uint);
 uint64          uvmalloc(pagetable_t, uint64, uint64, int);
 uint64          uvmdealloc(pagetable_t, uint64, uint64);
 int             uvmcopy(pagetable_t, pagetable_t, uint64);
+#ifdef LAB_COW
+int             uvmcopy_ondemand(uint64 va);
+#endif
 void            uvmfree(pagetable_t, uint64);
 void            uvmunmap(pagetable_t, uint64, uint64, int);
 void            uvmclear(pagetable_t, uint64);

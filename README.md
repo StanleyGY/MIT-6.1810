@@ -28,3 +28,8 @@ sudo apt-get install git build-essential gdb-multiarch qemu-system-misc gcc-risc
 - Create syscalls `sigalarm` and `sigreturn` that registers a handler to be called when ticks have passed by, and the handler calls `sigreturn` to resume the instruction before the interruption. This example show how callback for an async call can be designed in kernel.
     - `sigalarm` must save the trapframe before interruption and sets `epc` to alarm handler address to make `usertrap` return to alarm handler
     - `sigreturn` restores the trapframe before interruption.
+
+**Lab 5** - COW
+- Modified `fork` syscall to use copy-on-write mechanism. `fork` makes parent and child processes share pages which are made write-protected. When either user process tries to write data to the pages, the hardware triggers an exception which calls the trap handler, which allocates a new page for the faulting process.
+- Modified `copyout` kernel function to allocate a new page if the dest user page is copy-on-write protected.
+- Tracked reference count to COW pages, which are added to the freelist when no processs are using it.

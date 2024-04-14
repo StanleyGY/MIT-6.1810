@@ -5,6 +5,10 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#ifdef LAB_COW
+#include "spinlock.h"
+#include "proc.h"
+#endif
 
 /*
  * the kernel's page table.
@@ -314,29 +318,106 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
+
     pa = PTE2PA(*pte);
+
+    #ifdef LAB_COW
+    // Copy-on-write only applies to writable page.
+    // Read or executable-only pages can be shared directly between parent a child
+    if (*pte & PTE_W) {
+      // Mark page write protected
+      *pte &= ~PTE_W;
+      // Mark COW, meaning this write-protected page can later
+      // turn into a writable page when page fault happens
+      *pte |= PTE_RSW_COW;
+    }
+
+    // Child process also references to this area
+    mem_addref(pa);
+
+    // Map parent's physical pages into child
     flags = PTE_FLAGS(*pte);
+    if (mappages(new, i, PGSIZE, pa, flags) != 0) {
+      goto err;
+    }
+    #else
+    char *mem;
+
+    // Copy parent's physical pages into child
     if((mem = kalloc()) == 0)
       goto err;
     memmove(mem, (char*)pa, PGSIZE);
+
+    // Map new physical pages into child
+    flags = PTE_FLAGS(*pte);
     if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
       kfree(mem);
       goto err;
     }
+    #endif
   }
   return 0;
 
- err:
+err:
   uvmunmap(new, 0, i / PGSIZE, 1);
   return -1;
 }
+
+#ifdef LAB_COW
+int
+uvmcopy_ondemand(uint64 va) {
+  // Assuming that `va` is page-aligned
+  pte_t *pte;
+  uint64 pa, new_pa;
+  int flags;
+  struct proc *p = myproc();
+
+  va = PGROUNDDOWN(va);
+
+  if (va < 0 || va >= MAXVA)
+    return -1;
+
+  if ((pte = walk(p->pagetable, va, 0)) == 0)
+    return -1;
+
+  // If not faulting on a COW page, return immediately
+  if (!(*pte & PTE_RSW_COW)) {
+    return -1;
+  }
+
+  // Get physical page
+  pa = PTE2PA(*pte);
+
+  // Allocate a new page and copy contents
+  new_pa = (uint64)kalloc();
+  if (new_pa == 0)
+    return -1;
+
+  memmove((void*)new_pa, (const void*)pa, PGSIZE);
+
+  // Make the new page writable and clear COW bit
+  flags = PTE_FLAGS(*pte);
+  flags |= PTE_W;
+  flags &= ~PTE_RSW_COW;
+
+  // Remove the old mapping and install the new mapping
+  uvmunmap(p->pagetable, va, 1, 0);
+  if(mappages(p->pagetable, va, PGSIZE, (uint64)new_pa, flags) < 0) {
+    kfree((void *)new_pa);
+    return -1;
+  }
+
+  // Reclaim the physical page if there's no reference count
+  kfree((void *)pa);
+  return 0;
+}
+#endif
 
 // mark a PTE invalid for user access.
 // used by exec for the user stack guard page.
@@ -363,14 +444,27 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     va0 = PGROUNDDOWN(dstva);
     if(va0 >= MAXVA)
       return -1;
-    pte = walk(pagetable, va0, 0);
+
+    if ((pte = walk(pagetable, va0, 0)) == 0)
+      return -1;
+
+    #ifdef LAB_COW
+    if (*pte & PTE_RSW_COW) {
+      if (uvmcopy_ondemand(va0) < 0)
+        return -1;
+      pte = walk(pagetable, va0, 0);
+    }
+    #endif
+
     if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0 ||
        (*pte & PTE_W) == 0)
-      return -1;
+        return -1;
+
     pa0 = PTE2PA(*pte);
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
+
     memmove((void *)(pa0 + (dstva - va0)), src, n);
 
     len -= n;

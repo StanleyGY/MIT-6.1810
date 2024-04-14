@@ -50,9 +50,8 @@ usertrap(void)
   // save user program counter.
   p->trapframe->epc = r_sepc();
 
-  if(r_scause() == 8){
-    // system call
-
+  if(r_scause() == SCAUSE_SYSCALL){
+    // System call
     if(killed(p))
       exit(-1);
 
@@ -65,9 +64,20 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if((which_dev = devintr()) != 0){
+  }
+  #ifdef LAB_COW
+  else if (r_scause() == SCAUSE_STOREPAGEFAULT) {
+    // Get faulting address
+    uint64 va = r_stval();
+    if (uvmcopy_ondemand(va) < 0) {
+      setkilled(p);
+    }
+  }
+  #endif
+  else if((which_dev = devintr()) != 0){
     // ok
-  } else {
+  }
+  else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     setkilled(p);

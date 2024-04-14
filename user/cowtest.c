@@ -16,7 +16,7 @@ simpletest()
   int sz = (phys_size / 3) * 2;
 
   printf("simple: ");
-  
+
   char *p = sbrk(sz);
   if(p == (char*)0xffffffffffffffffL){
     printf("sbrk(%d) failed\n", sz);
@@ -58,7 +58,7 @@ threetest()
   int pid1, pid2;
 
   printf("three: ");
-  
+
   char *p = sbrk(sz);
   if(p == (char*)0xffffffffffffffffL){
     printf("sbrk(%d) failed\n", sz);
@@ -128,7 +128,7 @@ void
 filetest()
 {
   printf("file: ");
-  
+
   buf[0] = 99;
 
   for(int i = 0; i < 4; i++){

@@ -23,10 +23,16 @@ struct {
   struct run *freelist;
 } kmem;
 
+#ifdef LAB_COW
+// Count how many user processes' page table are referencing this physical page
+int mem_refcount[MEMREF_PGNUM];
+#endif
+
 void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
+  memset(mem_refcount, 0, sizeof(int) * MEMREF_PGNUM);
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -51,11 +57,15 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
+  #ifdef LAB_COW
+  if (mem_dropref((uint64)pa) > 0)
+    return;
+  #endif
+
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
 
   r = (struct run*)pa;
-
   acquire(&kmem.lock);
   r->next = kmem.freelist;
   kmem.freelist = r;
@@ -72,8 +82,12 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+  if(r) {
     kmem.freelist = r->next;
+    #ifdef LAB_COW
+    mem_addref((uint64)r);
+    #endif
+  }
   release(&kmem.lock);
 
   if(r)
@@ -94,5 +108,19 @@ mem_freebytes(void) {
   }
 
   return bytes;
+}
+#endif
+
+#ifdef LAB_COW
+void
+mem_addref(uint64 pa) {
+  mem_refcount[MEMREF_INDEX(pa)] ++;
+}
+
+int
+mem_dropref(uint64 pa) {
+  if (mem_refcount[MEMREF_INDEX(pa)] == 0)
+    return 0;
+  return --mem_refcount[MEMREF_INDEX(pa)];
 }
 #endif
