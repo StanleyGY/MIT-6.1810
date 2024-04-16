@@ -33,3 +33,8 @@ sudo apt-get install git build-essential gdb-multiarch qemu-system-misc gcc-risc
 - Modified `fork` syscall to use copy-on-write mechanism. `fork` makes parent and child processes share pages which are made write-protected. When either user process tries to write data to the pages, the hardware triggers an exception which calls the trap handler, which allocates a new page for the faulting process.
 - Modified `copyout` kernel function to allocate a new page if the dest user page is copy-on-write protected.
 - Tracked reference count to COW pages, which are added to the freelist when no processs are using it.
+
+**Lab 6** - THREAD
+- Created a program that implements threads with **software-level context switching** enabled. The thread yields voluntarily to another thread.
+- Designed a program `barrier` with mutex and cv that blocks a thread from executing until enough threads have arrived
+- Added mutex per hashtable cell to make a hashtable concurrency-safe
