@@ -19,7 +19,9 @@ static struct mbuf *rx_mbufs[RX_RING_SIZE];
 // remember where the e1000's registers live.
 static volatile uint32 *regs;
 
-struct spinlock e1000_lock;
+struct spinlock e1000_tx_lock;
+struct spinlock e1000_rx_lock;
+
 
 // called by pci_init().
 // xregs is the memory address at which the
@@ -29,7 +31,8 @@ e1000_init(uint32 *xregs)
 {
   int i;
 
-  initlock(&e1000_lock, "e1000");
+  initlock(&e1000_tx_lock, "e1000_tx");
+  initlock(&e1000_rx_lock, "e1000_rx");
 
   regs = xregs;
 
@@ -50,7 +53,7 @@ e1000_init(uint32 *xregs)
     panic("e1000");
   regs[E1000_TDLEN] = sizeof(tx_ring);
   regs[E1000_TDH] = regs[E1000_TDT] = 0;
-  
+
   // [E1000 14.4] Receive initialization
   memset(rx_ring, 0, sizeof(rx_ring));
   for (i = 0; i < RX_RING_SIZE; i++) {
@@ -85,7 +88,7 @@ e1000_init(uint32 *xregs)
     E1000_RCTL_BAM |                 // enable broadcast
     E1000_RCTL_SZ_2048 |             // 2048-byte rx buffers
     E1000_RCTL_SECRC;                // strip CRC
-  
+
   // ask e1000 for receive interrupts.
   regs[E1000_RDTR] = 0; // interrupt after every received packet (no timer)
   regs[E1000_RADV] = 0; // interrupt after every packet (no timer)
@@ -95,14 +98,33 @@ e1000_init(uint32 *xregs)
 int
 e1000_transmit(struct mbuf *m)
 {
-  //
-  // Your code here.
-  //
-  // the mbuf contains an ethernet frame; program it into
-  // the TX descriptor ring so that the e1000 sends it. Stash
-  // a pointer so that it can be freed after sending.
-  //
-  
+  acquire(&e1000_tx_lock);
+
+  // Read TDT register to get the first available descriptor for writes
+  int index = regs[E1000_TDT];
+  struct tx_desc *d = &tx_ring[index];
+
+  // TX Descriptor's DD bit indicates if the packet has been transmitted
+  if ((d->status & E1000_TXD_STAT_DD) == 0) {
+    release(&e1000_tx_lock);
+    return -1;
+  }
+
+  // Free the last mbuf that was transmitted from that descriptor
+  if (tx_mbufs[index])
+    mbuffree(tx_mbufs[index]);
+
+  d->addr   = (uint64)m->head;
+  d->length = m->len;
+  d->cmd    = E1000_TXD_CMD_RS | E1000_TXD_CMD_EOP;
+
+  // Stash away a pointer copy for later freeing
+  tx_mbufs[index] = m;
+
+  // Set next available descriptor
+  regs[E1000_TDT] = (index + 1) % TX_RING_SIZE;
+
+  release(&e1000_tx_lock);
   return 0;
 }
 
@@ -110,11 +132,32 @@ static void
 e1000_recv(void)
 {
   //
-  // Your code here.
-  //
   // Check for packets that have arrived from the e1000
   // Create and deliver an mbuf for each packet (using net_rx()).
   //
+  while (1) {
+    // Read RDT register to get the first available descriptor for reads
+    int index = (regs[E1000_RDT] + 1) % RX_RING_SIZE;
+    struct rx_desc *d = &rx_ring[index];
+
+    // Check if any packet has arrived
+    if ((d->status & E1000_RXD_STAT_DD) == 0)
+      return;
+
+    // Deliver the packet to network stack
+    struct mbuf *m = rx_mbufs[index];
+    m->len = d->length;
+    net_rx(m);  // this can call `e1000_transmit`
+
+    // Allocate a new mbuf at this descriptor
+    struct mbuf *nm = mbufalloc(MBUF_DEFAULT_HEADROOM);
+    rx_mbufs[index] = nm;
+    d->addr   = (uint64)nm->head;
+    d->status = 0;
+
+    // Set next available descriptor for reads
+    regs[E1000_RDT] = index;
+  }
 }
 
 void
@@ -125,5 +168,8 @@ e1000_intr(void)
   // further interrupts.
   regs[E1000_ICR] = 0xffffffff;
 
+  // Read and process incoming packets
+  acquire(&e1000_rx_lock);
   e1000_recv();
+  release(&e1000_rx_lock);
 }

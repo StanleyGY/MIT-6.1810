@@ -66,7 +66,7 @@ struct mbuf *
 mbufalloc(unsigned int headroom)
 {
   struct mbuf *m;
- 
+
   if (headroom > MBUF_SIZE)
     return 0;
   m = kalloc();
