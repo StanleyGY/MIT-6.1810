@@ -115,7 +115,6 @@ struct proc {
 
   #ifdef LAB_TRAPS
   int alarm_ticks_threshold;            // Ticks needed to trigger alarm handler
-  int alarm_ticks;                      // Ticks that have passed
   uint64 alarm_handler;                 // Handler executed when enough ticks have passed
   struct trapframe *alarm_trapframe;    // Trapframe before the alarm handler is called
   #endif

@@ -137,7 +137,6 @@ sys_sigalarm(void) {
   argaddr(1, &handler);
 
   p->alarm_ticks_threshold = ticks;
-  p->alarm_ticks = 0;
   p->alarm_handler = handler;
   return 0;
 }
@@ -146,10 +145,6 @@ uint64
 sys_sigreturn(void) {
   // Called by the alarm handler
   struct proc *p = myproc();
-
-  // Reset the ticks after handler returns so that
-  // kernel will not recall the handler while it is being executed
-  p->alarm_ticks = 0;
 
   // Restore the trapframe before interruption
   *(p->trapframe) = *(p->alarm_trapframe);

@@ -136,9 +136,7 @@ void            initlock(struct spinlock*, char*);
 void            release(struct spinlock*);
 void            push_off(void);
 void            pop_off(void);
-#if defined(LAB_LOCK) || defined(LAB_NET)
 int             atomic_read4(int *addr);
-#endif
 #ifdef LAB_LOCK
 void            freelock(struct spinlock*);
 #endif

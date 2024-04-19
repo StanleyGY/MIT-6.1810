@@ -87,15 +87,13 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  if(which_dev == 2) {
     yield();
 
-  #ifdef LAB_TRAPS
-  if (which_dev == 2 && p->alarm_ticks_threshold > 0) {
-    p->alarm_ticks ++;
+    #ifdef LAB_TRAPS
+    if (ticks > 0 && p->alarm_ticks_threshold > 0 && ticks % p->alarm_ticks_threshold == 0) {
+      // Enough ticks have passed to trigger the alarm
 
-    // Enough ticks have passed to trigger the alarm
-    if (p->alarm_ticks == p->alarm_ticks_threshold) {
       // Clone trapframe so the user program can return to
       // the instruction before interruption
       *(p->alarm_trapframe) = *(p->trapframe);
@@ -105,8 +103,8 @@ usertrap(void)
       // - Stack comes after `trapframe->sp` and won't overwrite local variables there
       p->trapframe->epc = p->alarm_handler;
     }
+    #endif
   }
-  #endif
 
   usertrapret();
 }
