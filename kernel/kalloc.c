@@ -18,10 +18,21 @@ struct run {
   struct run *next;
 };
 
+#ifdef LAB_LOCK
+// Kmem size per core
+#define KMEM_SIZE_PER_CORE PGROUNDDOWN((PHYSTOP - PGROUNDUP((uint64)end)) / NCPU)
+#define KMEM_ID(pa)        (pa - PGROUNDUP((uint64)end)) / KMEM_SIZE_PER_CORE
+
+struct {
+  struct spinlock lock;
+  struct run *freelist;
+} kmems[NCPU];
+#else
 struct {
   struct spinlock lock;
   struct run *freelist;
 } kmem;
+#endif
 
 #ifdef LAB_COW
 // Count how many user processes' page table are referencing this physical page
@@ -31,11 +42,23 @@ int mem_refcount[MEMREF_PGNUM];
 void
 kinit()
 {
+  #ifdef LAB_LOCK
+  // A kmem per core
+  for (int i = 0; i < NCPU; i++) {
+    initlock(&kmems[i].lock, "kmem");
+
+    uint64 pstart = PGROUNDUP((uint64)end) + KMEM_SIZE_PER_CORE * i;
+    uint64 pend = PGROUNDUP((uint64)end) + KMEM_SIZE_PER_CORE * (i + 1);
+    freerange((void *)pstart, (void *)pend);
+  }
+  #else
+  // A single kmem
   initlock(&kmem.lock, "kmem");
   #ifdef LAB_COW
   memset(mem_refcount, 0, sizeof(int) * MEMREF_PGNUM);
   #endif
   freerange(end, (void*)PHYSTOP);
+  #endif
 }
 
 void
@@ -68,10 +91,25 @@ kfree(void *pa)
   memset(pa, 1, PGSIZE);
 
   r = (struct run*)pa;
+
+  #ifdef LAB_LOCK
+
+  // Find which core's kmem this page belongs to
+  int id = KMEM_ID((uint64)pa);
+
+  acquire(&kmems[id].lock);
+  r->next = kmems[id].freelist;
+  kmems[id].freelist = r;
+  release(&kmems[id].lock);
+
+  #else
+
   acquire(&kmem.lock);
   r->next = kmem.freelist;
   kmem.freelist = r;
   release(&kmem.lock);
+
+  #endif
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -81,6 +119,29 @@ void *
 kalloc(void)
 {
   struct run *r;
+
+  #ifdef LAB_LOCK
+
+  // If no pages are available for current CPU, steal from a different CPU
+  int hartid = cpuid();
+  int id = hartid;
+
+  for (int i = 0; i < NCPU; i++) {
+    id = (hartid + i) % NCPU;
+    acquire(&kmems[id].lock);
+    if (kmems[id].freelist) {
+      break;
+    }
+    release(&kmems[id].lock);
+  }
+
+  r = kmems[id].freelist;
+  if (r) {
+    kmems[id].freelist = r->next;
+    release(&kmems[id].lock);
+  }
+
+  #else
 
   acquire(&kmem.lock);
   r = kmem.freelist;
@@ -92,8 +153,11 @@ kalloc(void)
   }
   release(&kmem.lock);
 
+  #endif
+
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
+
   return (void*)r;
 }
 
