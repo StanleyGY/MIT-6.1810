@@ -38,3 +38,10 @@ sudo apt-get install git build-essential gdb-multiarch qemu-system-misc gcc-risc
 - Created a program that implements threads with **software-level context switching** enabled. The thread yields voluntarily to another thread.
 - Designed a program `barrier` with mutex and cv that blocks a thread from executing until enough threads have arrived
 - Added mutex per hashtable cell to make a hashtable concurrency-safe
+
+**LAB 7** - NET
+- Added `e1000_transmit` and `e1000_recv` that interacts with a UDP server on host computer
+
+**Lab 8** - LOCK
+- Reduce lock contention by updating the kernel memory allocator to use per-core kernel memory
+- Reduce lock contention by updating the bcache layer to use hashtable and per-bucket lock

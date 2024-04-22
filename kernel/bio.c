@@ -23,6 +23,37 @@
 #include "fs.h"
 #include "buf.h"
 
+#ifdef LAB_LOCK
+
+// Hashtable of size of a prime is less prone to having conflicts
+#define NBUCKET 13
+
+struct bucket {
+  struct spinlock lock;
+  struct buf *head;
+  int avail;
+};
+
+// Use similar idea from question 1. All buckets will initially have 2-3 bufs,
+// and if not enough, steal more bufs from other buckets. Hash-table with linear
+// probing is not available.
+struct {
+  struct spinlock lock;
+  struct bucket buckets[NBUCKET];
+  struct buf buf[NBUF];
+} bcache;
+
+static void
+link(struct buf *s, struct buf *t)
+{
+  if (s)
+    s->next = t;
+  if (t)
+    t->prev = s;
+}
+
+#else
+
 struct {
   struct spinlock lock;
   struct buf buf[NBUF];
@@ -33,9 +64,38 @@ struct {
   struct buf head;
 } bcache;
 
+#endif
+
 void
 binit(void)
 {
+  #ifdef LAB_LOCK
+
+  initlock(&bcache.lock, "bcache");
+
+  for (int i = 0; i < NBUF; i++) {
+    initsleeplock(&bcache.buf[i].lock, "buffer");
+    if (i < NBUF - 1)
+      link(&bcache.buf[i], &bcache.buf[i + 1]);
+    else
+      link(&bcache.buf[i], 0);
+  }
+
+  for (int i = 0; i < NBUCKET; i++) {
+    initlock(&bcache.buckets[i].lock, "bcache");
+
+    bcache.buckets[i].head = &bcache.buf[i * 2];
+    link(0, &bcache.buf[i * 2]);
+
+    if (i < NBUCKET - 1) {
+      link(&bcache.buf[i * 2 + 1], 0);
+      bcache.buckets[i].avail = 2;
+    } else {
+      bcache.buckets[i].avail = 6;
+    }
+  }
+
+  #else
   struct buf *b;
 
   initlock(&bcache.lock, "bcache");
@@ -50,6 +110,8 @@ binit(void)
     bcache.head.next->prev = b;
     bcache.head.next = b;
   }
+
+  #endif
 }
 
 // Look through buffer cache for block on device dev.
@@ -59,6 +121,75 @@ static struct buf*
 bget(uint dev, uint blockno)
 {
   struct buf *b;
+
+  #ifdef LAB_LOCK
+
+  const int bucketid = (dev + blockno) % NBUCKET;
+  struct bucket *bkt = &bcache.buckets[bucketid];
+
+  // Check if it's cached
+  acquire(&bkt->lock);
+
+  b = bkt->head;
+  while (b) {
+    if (b->dev == dev && b->blockno == blockno) {
+      b->refcnt++;
+      release(&bkt->lock);
+      acquiresleep(&b->lock);
+      return b;
+    }
+    b = b->next;
+  }
+
+  // Not cached. Need to find an empty buffer
+  struct bucket *nbkt;
+  for (int i = 0; i < NBUCKET; i++) {
+    nbkt = &bcache.buckets[(bucketid + i) % NBUCKET];
+    if (nbkt != bkt)
+      acquire(&nbkt->lock);
+
+    if (nbkt->avail > 0) {
+      b = nbkt->head;
+      while (b) {
+        if (b->refcnt == 0) {
+          // Remove from a different bucket
+          nbkt->avail--;
+          if (b == nbkt->head)
+            nbkt->head = b->next;
+          link(b->prev, b->next);
+
+          // Put it into the current bucket
+          bkt->avail++;
+          link(b, bkt->head);
+          link(0, b);
+          bkt->head = b;
+
+          if (nbkt != bkt)
+            release(&nbkt->lock);
+
+          break;
+        }
+        b = b->next;
+      }
+
+      if(b) {
+        bkt->avail--;
+        b->dev = dev;
+        b->blockno = blockno;
+        b->valid = 0;
+        b->refcnt = 1;
+        release(&bkt->lock);
+        acquiresleep(&b->lock);
+        return b;
+      }
+    }
+
+    if (nbkt != bkt)
+      release(&nbkt->lock);
+  }
+  release(&bkt->lock);
+
+  #else
 
   acquire(&bcache.lock);
 
@@ -85,6 +216,9 @@ bget(uint dev, uint blockno)
       return b;
     }
   }
+
+  #endif
+
   panic("bget: no buffers");
 }
 
@@ -121,6 +255,19 @@ brelse(struct buf *b)
 
   releasesleep(&b->lock);
 
+  #ifdef LAB_LOCK
+
+  const int hashid = (b->dev + b->blockno) % NBUCKET;
+  struct bucket *bkt = &bcache.buckets[hashid];
+
+  acquire(&bkt->lock);
+  b->refcnt --;
+  if (b->refcnt == 0)
+    bkt->avail ++;
+  release(&bkt->lock);
+
+  #else
+
   acquire(&bcache.lock);
   b->refcnt--;
   if (b->refcnt == 0) {
@@ -132,22 +279,43 @@ brelse(struct buf *b)
     bcache.head.next->prev = b;
     bcache.head.next = b;
   }
-  
+
   release(&bcache.lock);
+
+  #endif
 }
 
 void
 bpin(struct buf *b) {
+  #ifdef LAB_LOCK
+  const int hashid = (b->dev + b->blockno) % NBUCKET;
+  struct bucket *bkt = &bcache.buckets[hashid];
+
+  acquire(&bkt->lock);
+  b->refcnt++;
+  release(&bkt->lock);
+
+  #else
   acquire(&bcache.lock);
   b->refcnt++;
   release(&bcache.lock);
+  #endif
 }
 
 void
 bunpin(struct buf *b) {
+  #ifdef LAB_LOCK
+  const int hashid = (b->dev + b->blockno) % NBUCKET;
+  struct bucket *bkt = &bcache.buckets[hashid];
+
+  acquire(&bkt->lock);
+  b->refcnt--;
+  release(&bkt->lock);
+  #else
   acquire(&bcache.lock);
   b->refcnt--;
   release(&bcache.lock);
+  #endif
 }
 
 
