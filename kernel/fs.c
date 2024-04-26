@@ -403,6 +403,8 @@ bmap(struct inode *ip, uint bn)
         return 0;
       ip->addrs[NDIRECT] = addr;
     }
+
+    // Read 1st level data block
     bp = bread(ip->dev, addr);
     a = (uint*)bp->data;
     if((addr = a[bn]) == 0){
@@ -415,17 +417,84 @@ bmap(struct inode *ip, uint bn)
     brelse(bp);
     return addr;
   }
+
+  #ifdef LAB_FS
+  bn -= NINDIRECT;
+
+  if (bn < NDOUBLEINDIRECT) {
+    // Load the double indirect block, allocating if necessary.
+    if((addr = ip->addrs[NDIRECT + 1]) == 0) {
+      if ((addr = balloc(ip->dev)) == 0)
+        return 0;
+      ip->addrs[NDIRECT + 1] = addr;
+    }
+
+    // Read 1st level data block
+    bp = bread(ip->dev, addr);
+    a = (uint*)bp->data;
+    if ((addr = a[bn / NINDIRECT]) == 0) {
+      if((addr = balloc(ip->dev)) == 0) {
+        brelse(bp);
+        return 0;
+      }
+      a[bn / NINDIRECT] = addr;
+      log_write(bp);
+    }
+
+    // Read 2nd level data block
+    struct buf *nbp = bread(ip->dev, addr);
+    a = (uint*)nbp->data;
+    if ((addr = a[bn % NINDIRECT]) == 0) {
+      if ((addr = balloc(ip->dev)) == 0) {
+        brelse(bp);
+        brelse(nbp);
+        return 0;
+      }
+      a[bn % NINDIRECT] = addr;
+      log_write(nbp);
+    }
+    brelse(bp);
+    brelse(nbp);
+
+    return addr;
+  }
+  #endif
   panic("bmap: out of range");
 }
 
 // Truncate inode (discard contents).
 // Caller must hold ip->lock.
+
+#ifdef LAB_FS
+static void
+itrunc_indirect(const struct inode *ip, int blockno, int level) {
+  struct buf *bp = bread(ip->dev, blockno);
+  uint *addrs = (uint*)bp->data;
+
+  for (int i = 0; i < NINDIRECT; i++) {
+    if (addrs[i]) {
+      if (level > 0) {
+        // Mid way - read more indirect blocks
+        itrunc_indirect(ip, addrs[i], level - 1);
+      } else {
+        // Last level - free the actual data block
+        bfree(ip->dev, addrs[i]);
+      }
+    }
+  }
+  brelse(bp);
+  bfree(ip->dev, blockno);
+}
+#endif
+
 void
 itrunc(struct inode *ip)
 {
-  int i, j;
+  int i;
+
+  #ifndef LAB_FS
   struct buf *bp;
-  uint *a;
+  #endif
 
   for(i = 0; i < NDIRECT; i++){
     if(ip->addrs[i]){
@@ -435,16 +504,27 @@ itrunc(struct inode *ip)
   }
 
   if(ip->addrs[NDIRECT]){
-    bp = bread(ip->dev, ip->addrs[NDIRECT]);
+    #ifdef LAB_FS
+    itrunc_indirect(ip, ip->addrs[NDIRECT], 0);
+    #else
+    uint *a;
+    int j;
+
     a = (uint*)bp->data;
     for(j = 0; j < NINDIRECT; j++){
       if(a[j])
         bfree(ip->dev, a[j]);
     }
-    brelse(bp);
-    bfree(ip->dev, ip->addrs[NDIRECT]);
+    #endif
     ip->addrs[NDIRECT] = 0;
   }
+
+  #ifdef LAB_FS
+  if (ip->addrs[NDIRECT + 1]) {
+    itrunc_indirect(ip, ip->addrs[NDIRECT + 1], 1);
+    ip->addrs[NDIRECT + 1] = 0;
+  }
+  #endif
 
   ip->size = 0;
   iupdate(ip);
@@ -513,6 +593,7 @@ writei(struct inode *ip, int user_src, uint64 src, uint off, uint n)
 
   for(tot=0; tot<n; tot+=m, off+=m, src+=m){
     uint addr = bmap(ip, off/BSIZE);
+
     if(addr == 0)
       break;
     bp = bread(ip->dev, addr);
