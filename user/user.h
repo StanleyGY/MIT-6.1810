@@ -45,6 +45,9 @@ int sigreturn(void);
 #ifdef LAB_NET
 int connect(uint32, uint16, uint16);
 #endif
+#ifdef LAB_FS
+int symlink(char* target, char* path);
+#endif
 
 // ulib.c
 int stat(const char*, struct stat*);

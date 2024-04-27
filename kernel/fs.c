@@ -343,7 +343,6 @@ iput(struct inode *ip)
     // ip->ref == 1 means no other process can have ip locked,
     // so this acquiresleep() won't block (or deadlock).
     acquiresleep(&ip->lock);
-
     release(&itable.lock);
 
     itrunc(ip);
@@ -352,7 +351,6 @@ iput(struct inode *ip)
     ip->valid = 0;
 
     releasesleep(&ip->lock);
-
     acquire(&itable.lock);
   }
 

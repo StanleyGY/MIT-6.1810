@@ -115,6 +115,9 @@ extern uint64 sys_sigreturn(void);
 #ifdef LAB_NET
 extern uint64 sys_connect(void);
 #endif
+#ifdef LAB_FS
+extern uint64 sys_symlink(void);
+#endif
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -153,6 +156,9 @@ static uint64 (*syscalls[])(void) = {
 #endif
 #ifdef LAB_NET
 [SYS_connect] sys_connect,
+#endif
+#ifdef LAB_FS
+[SYS_symlink] sys_symlink,
 #endif
 };
 

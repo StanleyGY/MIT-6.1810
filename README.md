@@ -45,3 +45,7 @@ sudo apt-get install git build-essential gdb-multiarch qemu-system-misc gcc-risc
 **Lab 8** - LOCK
 - Reduce lock contention by updating the kernel memory allocator to use per-core kernel memory
 - Reduce lock contention by updating the bcache layer to use hashtable and per-bucket lock
+
+**Lab 9** - FS
+- Supported doubly linked list inode
+- Added `symlink` syscall to create soft link for a file

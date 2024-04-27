@@ -130,25 +130,30 @@ sys_link(void)
     return -1;
 
   begin_op();
+
+  // Find inode by the pathname
   if((ip = namei(old)) == 0){
     end_op();
     return -1;
   }
 
   ilock(ip);
+  // Cannot add a hard link to a directory
   if(ip->type == T_DIR){
     iunlockput(ip);
     end_op();
     return -1;
   }
-
   ip->nlink++;
   iupdate(ip);
   iunlock(ip);
 
+  // Find the inode for parent directory
   if((dp = nameiparent(new, name)) == 0)
     goto bad;
+
   ilock(dp);
+  // Write the file as an entry in parent directory
   if(dp->dev != ip->dev || dirlink(dp, name, ip->inum) < 0){
     iunlockput(dp);
     goto bad;
@@ -197,6 +202,8 @@ sys_unlink(void)
     return -1;
 
   begin_op();
+
+  // Get inode for parent directory
   if((dp = nameiparent(path, name)) == 0){
     end_op();
     return -1;
@@ -210,19 +217,25 @@ sys_unlink(void)
 
   if((ip = dirlookup(dp, name, &off)) == 0)
     goto bad;
+
   ilock(ip);
 
   if(ip->nlink < 1)
     panic("unlink: nlink < 1");
+
+  // Cannot unlink a non-empty dir
   if(ip->type == T_DIR && !isdirempty(ip)){
     iunlockput(ip);
     goto bad;
   }
 
+  // Remove from parent directory
   memset(&de, 0, sizeof(de));
   if(writei(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
     panic("unlink: writei");
+
   if(ip->type == T_DIR){
+    // Child no longer references to parent via `..`
     dp->nlink--;
     iupdate(dp);
   }
@@ -245,24 +258,32 @@ bad:
 static struct inode*
 create(char *path, short type, short major, short minor)
 {
+  // `dp` for parent and `ip` for child
   struct inode *ip, *dp;
   char name[DIRSIZ];
 
+  // Get inode for the parent directory
   if((dp = nameiparent(path, name)) == 0)
     return 0;
 
   ilock(dp);
 
   if((ip = dirlookup(dp, name, 0)) != 0){
+    // The file has existed already
     iunlockput(dp);
     ilock(ip);
     if(type == T_FILE && (ip->type == T_FILE || ip->type == T_DEVICE))
       return ip;
+    #ifdef LAB_FS
+    if (type == T_SYMLINK && ip->type == T_SYMLINK)
+      return ip;
+    #endif
     iunlockput(ip);
     return 0;
   }
 
   if((ip = ialloc(dp->dev, type)) == 0){
+    // Allocate an inode for the new file
     iunlockput(dp);
     return 0;
   }
@@ -273,12 +294,14 @@ create(char *path, short type, short major, short minor)
   ip->nlink = 1;
   iupdate(ip);
 
-  if(type == T_DIR){  // Create . and .. entries.
+  if (type == T_DIR) {
+    // Create . and .. entries.
     // No ip->nlink++ for ".": avoid cyclic ref count.
     if(dirlink(ip, ".", ip->inum) < 0 || dirlink(ip, "..", dp->inum) < 0)
       goto fail;
   }
 
+  // Link parent directory to child
   if(dirlink(dp, name, ip->inum) < 0)
     goto fail;
 
@@ -327,12 +350,14 @@ sys_open(void)
       end_op();
       return -1;
     }
+
     ilock(ip);
     if(ip->type == T_DIR && omode != O_RDONLY){
       iunlockput(ip);
       end_op();
       return -1;
     }
+
   }
 
   if(ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)){
@@ -340,6 +365,51 @@ sys_open(void)
     end_op();
     return -1;
   }
+
+  #ifdef LAB_FS
+  if (ip->type == T_SYMLINK && ((omode & O_NOFOLLOW) == 0)) {
+    // Follow the symlink
+    char target[MAXPATH];
+    struct inode *nip = ip;
+    int depth = 0;
+
+    while (depth < 10 && ip->type == T_SYMLINK) {
+
+      // Read symlink inode's data, the name of sym-linked file
+      if (readi(ip, 0, (uint64)target, 0, sizeof(target)) != sizeof(target)) {
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+      iunlockput(ip);
+
+      // Try open the target path
+      if ((nip = namei(target)) == 0) {
+        // Sym-linked file does not exist
+        end_op();
+        return -1;
+      }
+
+      ilock(nip);
+      if (nip->type != T_SYMLINK) {
+        // Find the actual file
+        break;
+      }
+
+      depth ++;
+      ip = nip;
+    }
+
+    // Possibly form a cycle
+    if (depth >= 10) {
+      iunlockput(ip);
+      end_op();
+      return -1;
+    }
+
+    ip = nip;
+  }
+  #endif
 
   if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){
     if(f)
@@ -526,5 +596,37 @@ sys_connect(void)
   }
 
   return fd;
+}
+#endif
+
+#ifdef LAB_FS
+int
+sys_symlink(void)
+{
+  // Create a symbolic link at path that refers to
+  // file named by `target`. Does not need the `target` to
+  // exist to succeed.
+  char target[MAXPATH];
+  char path[MAXPATH];
+  struct inode *ip;
+
+  if(argstr(0, target, MAXPATH) < 0 || argstr(1, path, MAXPATH) < 0)
+    return -1;
+
+  begin_op();
+
+  // Create symbolic file
+  ip = create(path, T_SYMLINK, 0, 0);
+
+  // Store the target path in inode's data block
+  if (writei(ip, 0, (uint64)target, 0, sizeof(target)) != sizeof(target)) {
+    iunlockput(ip);
+    end_op();
+    return -1;
+  }
+
+  iunlockput(ip);
+  end_op();
+  return 0;
 }
 #endif
