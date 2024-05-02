@@ -69,9 +69,18 @@ usertrap(void)
   else if (r_scause() == SCAUSE_STOREPAGEFAULT) {
     // Get faulting address
     uint64 va = r_stval();
-    if (uvmcopy_ondemand(va) < 0) {
+    if (uvmcopy_ondemand(va) < 0)
       setkilled(p);
-    }
+  }
+  #endif
+  #ifdef LAB_MMAP
+  else if (r_scause() == SCAUSE_STOREPAGEFAULT
+    || r_scause() == SCAUSE_INSTPAGEFAULT
+    || r_scause() == SCAUSE_LOADPAGEFAULT) {
+    // Get faulting address
+    uint64 va = r_stval();
+    if(filemmap(va) < 0)
+      setkilled(p);
   }
   #endif
   else if((which_dev = devintr()) != 0){

@@ -15,6 +15,9 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
+#ifdef LAB_MMAP
+#include "memlayout.h"
+#endif
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
@@ -623,6 +626,109 @@ sys_symlink(void)
 
   iunlockput(ip);
   end_op();
+  return 0;
+}
+#endif
+
+#ifdef LAB_MMAP
+uint64
+sys_mmap(void)
+{
+  // In this lab, assuming:
+  // - kernel always decides the VA to map the file
+  // - `addr` and `offset` are zero
+
+  int length;    // number of bytes to map
+  int prot;      // OPTIONS: readable, writeable, executable
+  int flags;     // OPTIONS: MAP_SHARED, MAP_PRIVATE
+  int fd;        // the open file descriptor of the file to map
+
+  argint(1, &length);
+  argint(2, &prot);
+  argint(3, &flags);
+  argint(4, &fd);
+
+  struct proc *p = myproc();
+  struct file *f = p->ofile[fd];
+
+  // Check if file permission allows `mmap`
+  if (!f->readable)
+    return -1;
+
+  // You can't write back to a file that is not writable
+  if (flags == MAP_SHARED && (prot & PROT_WRITE) && !f->writable)
+    return -1;
+
+  // Find an used `vma` struct
+  const int req_pages = length / PGSIZE;
+
+  for (int i = 0; i < NVMA; i++) {
+    // Count how many pages are available that begins at this address
+    int avail_pages = 0;
+    for (int j = 0; j < req_pages && i + j < NVMA; j ++)
+      if (!p->vmas[i + j].used)
+        avail_pages ++;
+
+    if (avail_pages == req_pages) {
+      // Mark used for these VMA structs
+      for (int j = 0; j < req_pages; j ++) {
+        struct vma *a = &p->vmas[i + j];
+        a->used = 1;
+
+        // VM info
+        a->start = VMABASE + PGSIZE * (i + j);
+        a->prot = prot;
+        a->flags = flags;
+        a->mapped = 0;
+
+        // File info
+        a->f = f;
+        a->foffset = PGSIZE * j;
+        filedup(f);
+      }
+      return p->vmas[i].start;
+    }
+  }
+  return -1;
+}
+
+
+uint64
+sys_munmap(void)
+{
+  uint64 va;
+  int length;
+
+  argaddr(0, &va);
+  argint(1, &length);
+
+  // Page-aligned
+  if (PGROUNDDOWN(va) != va)
+    return -1;
+
+  // Page-aligned
+  if (length & 0xfff)
+    return -1;
+
+  int start_ind = (va - VMABASE) / PGSIZE;
+  int end_ind = (va + length - VMABASE) / PGSIZE;  // exclusive
+
+  // Out of bound
+  if (end_ind >= NVMA)
+    return -1;
+
+  // Check if the requested ranges are in use
+  struct proc *p = myproc();
+
+  for (int i = start_ind; i < end_ind; i ++)
+    if (!p->vmas[i].used)
+      return -1;
+
+  // Write back the modified part to local file
+  for (int i = start_ind; i < end_ind; i ++)
+    if (filemunmap(i) < 0)
+      return -1;
+
   return 0;
 }
 #endif

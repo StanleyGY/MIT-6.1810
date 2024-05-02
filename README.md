@@ -49,3 +49,6 @@ sudo apt-get install git build-essential gdb-multiarch qemu-system-misc gcc-risc
 **Lab 9** - FS
 - Supported doubly linked list inode
 - Added `symlink` syscall to create soft link for a file
+
+**Lab 10** - MMAP
+- Supported `mmap` and `munmap` that maps a file to a user-controlled virtual memory address. Supported permission control for that virtual memory segment. Also supported writing modifications back to the file with `MAP_SHARED`.

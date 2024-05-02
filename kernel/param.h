@@ -24,4 +24,6 @@
 #endif
 #define MAXPATH      128   // maximum file path name
 
-
+#ifdef LAB_MMAP
+#define NVMA         16    // maximum number of virtual memory areas
+#endif

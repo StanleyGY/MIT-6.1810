@@ -267,11 +267,13 @@ UPROGS += \
 	$U/_nettests
 endif
 
-UEXTRA=
 ifeq ($(LAB),util)
-	UEXTRA += user/xargstest.sh
+UEXTRA += user/xargstest.sh
 endif
 
+ifeq ($(LAB),mmap)
+UPROGS += $U/_mmaptest
+endif
 
 fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS)
 	mkfs/mkfs fs.img README $(UEXTRA) $(UPROGS)

@@ -12,6 +12,10 @@
 #include "file.h"
 #include "stat.h"
 #include "proc.h"
+#ifdef LAB_MMAP
+#include "fcntl.h"
+#include "memlayout.h"
+#endif
 
 struct devsw devsw[NDEV];
 struct {
@@ -197,3 +201,97 @@ filewrite(struct file *f, uint64 addr, int n)
   return ret;
 }
 
+#ifdef LAB_MMAP
+int
+filemmap(uint64 va) {
+  struct proc *p = myproc();
+
+  // Out of bound
+  int ind = (va - VMABASE) / PGSIZE;
+  if (ind >= NVMA || ind < 0)
+    return -1;
+
+  // Remapped
+  struct vma *a = &p->vmas[ind];
+  if (a->mapped)
+    return -1;
+
+  a->mapped = 1;
+
+  // Translate to memory permissions
+  int prot = a->prot;
+  int perm = PTE_U;
+  if (prot && PROT_READ)
+    perm |= PTE_R;
+  if (prot && PROT_WRITE)
+    perm |= PTE_W;
+  if (prot && PROT_EXEC)
+    perm |= PTE_X;
+
+  // Allocate a physical page
+  uint64 pa = (uint64)kalloc();
+  if (pa == 0)
+    return -1;
+
+  // Zero the page
+  memset((void *)pa, 0, PGSIZE);
+
+  // Install PTEs
+  if (mappages(p->pagetable, a->start, PGSIZE, (uint64)pa, perm) < 0) {
+    kfree((void *)pa);
+    return -1;
+  }
+
+  // Read file contents
+  struct file *f = a->f;
+  ilock(f->ip);
+  if (readi(f->ip, 1, a->start, a->foffset, PGSIZE) < 0) {
+    kfree((void *)pa);
+    iunlock(f->ip);
+    return -1;
+  }
+  iunlock(f->ip);
+  return 0;
+}
+
+int
+filemunmap(int i) {
+  struct proc *p = myproc();
+  struct vma *a = &p->vmas[i];
+
+  if (!a->used)
+    return 0;
+
+  struct file *f = a->f;
+
+  // Used but not mapped
+  if (!a->mapped) {
+    a->used = 0;
+    fileclose(f);
+    return 0;
+  }
+
+  // Write back the modified part to local file
+  if (a->flags == MAP_SHARED) {
+    // Ideally, only write back pages with dirty bit
+    // But this lab doesn't check this
+    begin_op();
+    ilock(f->ip);
+    if (writei(f->ip, 1, a->start, a->foffset, PGSIZE) < 0) {
+      iunlock(f->ip);
+      end_op();
+      return -1;
+    }
+    iunlock(f->ip);
+    end_op();
+  }
+
+  // Uninstall PTEs
+  uvmunmap(p->pagetable, a->start, 1, 1);
+
+  // Update vma struct
+  a->used = 0;
+  fileclose(f);
+  return 0;
+}
+#endif

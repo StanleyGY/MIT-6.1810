@@ -368,6 +368,17 @@ fork(void)
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
 
+  #ifdef LAB_MMAP
+  // Copy parents VMAs to child
+  for (i = 0; i < NVMA; i++)
+    if (p->vmas[i].used) {
+      np->vmas[i] = p->vmas[i];
+      // Not share pages with parents
+      np->vmas[i].mapped = 0;
+      filedup(np->vmas[i].f);
+    }
+  #endif
+
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
@@ -424,6 +435,12 @@ exit(int status)
   iput(p->cwd);
   end_op();
   p->cwd = 0;
+
+  #ifdef LAB_MMAP
+  for (int i = 0; i < NVMA; i++){
+    filemunmap(i);
+  }
+  #endif
 
   acquire(&wait_lock);
 

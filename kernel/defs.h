@@ -41,6 +41,10 @@ void            fileinit(void);
 int             fileread(struct file*, uint64, int n);
 int             filestat(struct file*, uint64 addr);
 int             filewrite(struct file*, uint64, int n);
+#ifdef LAB_MMAP
+int             filemmap(uint64 va);
+int             filemunmap(int i);
+#endif
 
 // fs.c
 void            fsinit(int);

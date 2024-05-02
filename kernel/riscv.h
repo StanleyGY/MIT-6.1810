@@ -377,4 +377,6 @@ typedef uint64 *pagetable_t; // 512 PTEs
 
 // Register SCAUSE possible values
 #define SCAUSE_SYSCALL        8
+#define SCAUSE_INSTPAGEFAULT  12
+#define SCAUSE_LOADPAGEFAULT  13
 #define SCAUSE_STOREPAGEFAULT 15

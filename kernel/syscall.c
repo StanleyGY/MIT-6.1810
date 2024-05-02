@@ -118,6 +118,10 @@ extern uint64 sys_connect(void);
 #ifdef LAB_FS
 extern uint64 sys_symlink(void);
 #endif
+#ifdef LAB_MMAP
+extern uint64 sys_mmap(void);
+extern uint64 sys_munmap(void);
+#endif
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -159,6 +163,10 @@ static uint64 (*syscalls[])(void) = {
 #endif
 #ifdef LAB_FS
 [SYS_symlink] sys_symlink,
+#endif
+#ifdef LAB_MMAP
+[SYS_mmap]   sys_mmap,
+[SYS_munmap] sys_munmap,
 #endif
 };
 

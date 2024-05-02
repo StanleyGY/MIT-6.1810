@@ -81,6 +81,20 @@ struct trapframe {
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+#ifdef LAB_MMAP
+struct vma {
+  uint64 start;     // Part of VM might be unmapped
+  // int length;
+  int prot;
+  struct file *f;   // Store file* because `fd` would fail if process
+                    // doesn't have open file, but only `mmap` has
+  int foffset;      //
+  int flags;
+  int used;
+  int mapped;       // Lazy allocation causes map to be delayed
+};
+#endif
+
 // Per-process state
 struct proc {
   struct spinlock lock;
@@ -117,5 +131,9 @@ struct proc {
   int alarm_ticks_threshold;            // Ticks needed to trigger alarm handler
   uint64 alarm_handler;                 // Handler executed when enough ticks have passed
   struct trapframe *alarm_trapframe;    // Trapframe before the alarm handler is called
+  #endif
+
+  #ifdef LAB_MMAP
+  struct vma vmas[NVMA];
   #endif
 };
